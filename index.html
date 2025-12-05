@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注音符號隨機聽讀練習 - 最終穩定版 (跨裝置發音修正)</title>
+    <title>注音符號隨機聽讀練習 - MP3 本地播放版</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -64,10 +64,7 @@
         }
         
         #test-button {
-            background-color: #9b59b6;
-        }
-        #test-button:hover {
-            background-color: #8e44ad;
+            display: none;
         }
 
         .action-button {
@@ -134,181 +131,136 @@
             <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽聽看</button>
         </div>
         
-        <button id="test-button" class="action-button" onclick="testSpeech()">🔊 語音測試</button>
-        
         <div id="message">請點擊「下一題」開始練習</div>
+
+        <audio id="bopomofo-audio" preload="auto"></audio>
 
     </div>
 
-<script>
-    // 這一版專注於 iOS 台灣口音優化
-    const bopomofo = [
-        "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
-        "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
-        "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄝ", "ㄞ", "ㄟ", "ㄠ", "ㄡ",
-        "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"
-    ];
+    <script>
+        // 注音符號陣列
+        const bopomofo = [
+            "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
+            "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
+            "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄝ", "ㄞ", "ㄟ", "ㄠ", "ㄡ",
+            "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"
+        ];
 
-    // 只有在真的找不到台灣語音時，才用這個拼音表當作最後手段
-    const pinyinMap = {
-        "ㄅ": "bō", "ㄆ": "pō", "ㄇ": "mō", "ㄈ": "fō", 
-        "ㄉ": "dē", "ㄊ": "tē", "ㄋ": "nē", "ㄌ": "lē", 
-        "ㄍ": "gē", "ㄎ": "kē", "ㄏ": "hē",
-        "ㄐ": "jī", "ㄑ": "qī", "ㄒ": "xī", 
-        "ㄓ": "zhī", "ㄔ": "chī", "ㄕ": "shī", "ㄖ": "rī", 
-        "ㄗ": "zī", "ㄘ": "cī", "ㄙ": "sī",
-        "ㄧ": "yī", "ㄨ": "wū", "ㄩ": "yū", 
-        "ㄚ": "ā", "ㄛ": "ō", "ㄜ": "ē", "ㄝ": "iē",
-        "ㄞ": "āi", "ㄟ": "ēi", "ㄠ": "āo", "ㄡ": "ōu",
-        "ㄢ": "ān", "ㄣ": "ēn", "ㄤ": "āng", "ㄥ": "ēng", "ㄦ": "ér"
-    };
+        let currentSymbol = '';
+        let roundCounter = 0; 
 
-    let currentSymbol = '';
-    let roundCounter = 0; 
+        const displayEl = document.getElementById('bopomofo-display');
+        const messageEl = document.getElementById('message');
+        const listenButton = document.getElementById('listen-button');
+        const counterDisplay = document.getElementById('counter-display');
+        const audioEl = document.getElementById('bopomofo-audio'); 
 
-    const displayEl = document.getElementById('bopomofo-display');
-    const messageEl = document.getElementById('message');
-    const listenButton = document.getElementById('listen-button');
-    const counterDisplay = document.getElementById('counter-display');
-    const testButton = document.getElementById('test-button');
-    
-    const synth = window.speechSynthesis;
-    let targetVoice = null; 
-
-    // ----------------------------------------------------
-    // I. iOS 語音鎖定邏輯
-    // ----------------------------------------------------
-
-    function loadIOSVoice() {
-        const voices = synth.getVoices();
+        // ----------------------------------------------------
+        // I. MP3 播放核心函數
+        // ----------------------------------------------------
         
-        // 策略 1: 最優先尋找 iOS 的御用台灣發音員 "Meijia" (美佳)
-        // Meijia 是 iOS 系統裡能最完美朗讀注音符號的語音
-        targetVoice = voices.find(v => v.name.includes('Meijia'));
-
-        // 策略 2: 如果找不到 Meijia，找任何標記為 zh-TW 或 Taiwan 的語音
-        if (!targetVoice) {
-            targetVoice = voices.find(v => v.lang === 'zh-TW' || v.lang === 'zh-Hant-TW');
+        /**
+         * 根據注音符號取得其對應的 MP3 檔案路徑。
+         * 修正：加入了 "mp3/" 資料夾路徑。
+         */
+        function getMp3FilePath(symbol) {
+            const index = bopomofo.indexOf(symbol);
+            if (index === -1) {
+                console.error("無效的注音符號:", symbol);
+                return '';
+            }
+            
+            const fileNumber = index + 1;
+            const fileName = fileNumber.toString().padStart(2, '0');
+            
+            // 【已修正】從 mp3 資料夾讀取檔案
+            return `mp3/${fileName}.mp3`;
         }
 
-        if (targetVoice) {
-            console.log("已鎖定台灣語音:", targetVoice.name);
-        } else {
-            console.log("尚未找到台灣語音，等待載入...");
-        }
-    }
+        /**
+         * 播放當前注音符號對應的 MP3 檔案。
+         */
+        function playCurrentSound() {
+            if (!currentSymbol) {
+                messageEl.textContent = '請先點擊「下一題」開始。';
+                return;
+            }
+            
+            const mp3Path = getMp3FilePath(currentSymbol);
+            
+            if (!mp3Path) {
+                messageEl.textContent = '錯誤：找不到該注音的 MP3 檔案。';
+                return;
+            }
 
-    // iOS Safari 的語音載入有時候很慢，需要重複檢查
-    if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = loadIOSVoice;
-    }
-    
-    // 強制每 500ms 檢查一次，直到找到語音為止 (針對 iOS 的頑固問題)
-    let voiceCheckInterval = setInterval(() => {
-        const voices = synth.getVoices();
-        if (voices.length > 0) {
-            loadIOSVoice();
-            if (targetVoice) clearInterval(voiceCheckInterval);
-        }
-    }, 500);
+            audioEl.src = mp3Path;
+            
+            audioEl.pause();
+            audioEl.currentTime = 0;
+            
+            listenButton.textContent = '🔊 正在播放...';
+            listenButton.disabled = true;
 
-    function speakText(text, btn, originalText) {
-        // iOS 關鍵修正：播放前必須先 cancel，否則會卡住
-        synth.cancel();
+            audioEl.onended = function() {
+                listenButton.textContent = '👂 聽聽看';
+                listenButton.disabled = false;
+                audioEl.removeAttribute('src'); 
+            };
 
-        if (!targetVoice) loadIOSVoice();
-
-        let textToSpeak = text;
-        
-        // 邏輯判斷：
-        // 如果我們找到了 Meijia (美佳) 或台灣語音，我們就直接唸注音符號 "ㄅ"
-        // 這樣才會有純正的台灣口音 (一聲)。
-        // 只有在完全找不到台灣語音時，才轉拼音。
-        if (!targetVoice && pinyinMap[text]) {
-            textToSpeak = pinyinMap[text];
-        }
-
-        const utterance = new SpeechSynthesisUtterance(textToSpeak);
-        
-        if (targetVoice) {
-            utterance.voice = targetVoice;
-            utterance.lang = targetVoice.lang;
-        } else {
-            utterance.lang = 'zh-TW'; // 盲設，碰運氣
+            audioEl.oncanplaythrough = function() {
+                audioEl.play().catch(error => {
+                    console.error("播放 MP3 失敗:", error);
+                    messageEl.textContent = '播放失敗，請檢查 MP3 檔案是否正確上傳到 mp3 資料夾。';
+                    audioEl.onended(); 
+                });
+            };
+            
+            if (audioEl.readyState >= 3) {
+                audioEl.oncanplaythrough();
+            }
         }
 
-        // 參數調整：美佳唸得比較快，稍微調慢一點點比較清楚
-        utterance.rate = 0.75; 
-        utterance.pitch = 1.0; 
+        // ----------------------------------------------------
+        // II. 遊戲流程控制
+        // ----------------------------------------------------
 
-        btn.textContent = '🔊 發音中...';
-        btn.disabled = true;
+        function startNewRound() {
+            roundCounter++; 
+            counterDisplay.textContent = `已練習題數: ${roundCounter}`;
 
-        utterance.onend = function() {
-            btn.textContent = originalText;
-            btn.disabled = false;
-        };
+            currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
+            displayEl.textContent = currentSymbol;
+            
+            displayEl.style.fontSize = '15em'; 
+            displayEl.style.color = '#e74c3c'; 
+
+            listenButton.disabled = false;
+            listenButton.textContent = '👂 聽聽看';
+            messageEl.textContent = `新的注音符號：${currentSymbol}。請點擊「聽聽看」發音。`;
+            
+            audioEl.removeAttribute('src'); 
+        }
         
-        utterance.onerror = function(e) {
-            console.error("Speech Error:", e);
-            btn.textContent = originalText;
-            btn.disabled = false;
-        };
+        function resetGame() {
+            roundCounter = 0;
+            counterDisplay.textContent = `已練習題數: 0`;
+            currentSymbol = '';
+            
+            displayEl.textContent = '準備好了嗎？';
+            displayEl.style.fontSize = '3em'; 
+            displayEl.style.color = '#7f8c8d'; 
+            
+            listenButton.disabled = true;
+            listenButton.textContent = '👂 聽聽看';
+            messageEl.textContent = '計數已歸零。請點擊「下一題」開始練習。';
 
-        synth.speak(utterance);
-    }
+            audioEl.removeAttribute('src'); 
+        }
 
-    // ----------------------------------------------------
-    // II. 遊戲控制
-    // ----------------------------------------------------
-
-    function playCurrentSound() {
-        if (!currentSymbol || listenButton.disabled) return;
-        speakText(currentSymbol, listenButton, '👂 聽聽看');
-    }
-
-    function testSpeech() {
-        if (testButton.disabled) return;
-        // 測試這句話，如果聽到台灣口音表示成功
-        speakText('ㄅㄆㄇㄈ', testButton, '🔊 語音測試');
-    }
-
-    function startNewRound() {
-        roundCounter++; 
-        counterDisplay.textContent = `已練習題數: ${roundCounter}`;
-
-        currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
-        displayEl.textContent = currentSymbol;
-        displayEl.style.fontSize = '15em'; 
-        displayEl.style.color = '#e74c3c'; 
-
-        listenButton.disabled = false;
-        listenButton.textContent = '👂 聽聽看';
-        messageEl.textContent = `題目：${currentSymbol}`;
-        
-        // 這裡不自動播放，因為 iOS 禁止非使用者觸發的自動播放
-    }
-    
-    function resetGame() {
-        roundCounter = 0;
-        counterDisplay.textContent = `已練習題數: 0`;
-        currentSymbol = '';
-        
-        displayEl.textContent = '準備好了嗎？';
-        displayEl.style.fontSize = '3em'; 
-        displayEl.style.color = '#7f8c8d'; 
-        
-        listenButton.disabled = true;
-        listenButton.textContent = '👂 聽聽看';
-        messageEl.textContent = '點擊「下一題」開始';
-
-        synth.cancel(); 
-        loadIOSVoice();
-    }
-
-    window.onload = function() {
-        resetGame();
-    };
-</script>
+        // 首次載入時的初始化
+        window.onload = function() {
+            resetGame(); 
+        }
+    </script>
 </body>
 </html>
