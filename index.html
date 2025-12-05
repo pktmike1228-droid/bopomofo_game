@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注音符號隨機聽讀練習 - 最終穩定版 (iOS相容)</title>
+    <title>注音符號隨機聽讀練習 - 最終測試版</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -61,6 +61,13 @@
             gap: 15px;
             justify-content: center;
             margin-bottom: 20px;
+        }
+        
+        #test-button { /* 新增測試按鈕樣式 */
+            background-color: #9b59b6; /* 紫色 */
+        }
+        #test-button:hover {
+            background-color: #8e44ad;
         }
 
         .action-button {
@@ -127,6 +134,8 @@
             <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽聽看</button>
         </div>
         
+        <button id="test-button" class="action-button" onclick="testSpeech()">🔊 語音測試</button>
+        
         <div id="message">請點擊「下一題」開始練習</div>
 
     </div>
@@ -146,6 +155,7 @@
         const messageEl = document.getElementById('message');
         const listenButton = document.getElementById('listen-button');
         const counterDisplay = document.getElementById('counter-display');
+        const testButton = document.getElementById('test-button'); // 取得測試按鈕
         
         const synth = window.speechSynthesis;
         let chineseVoice = null; 
@@ -156,14 +166,9 @@
         // I. 語音合成核心函數 (針對 iOS 修正)
         // ----------------------------------------------------
 
-        /**
-         * 載入並選取中文語音。
-         * 修正：移除對 "zh-TW" 的強制依賴，只要找到中文語音即可。
-         */
         function loadChineseVoice() {
             if (voicesLoaded) return;
             const voices = synth.getVoices();
-            // 嘗試找到任何中文語音 (zh-TW, zh-CN, zh-HK, 或任何名稱包含 Chinese 的)
             chineseVoice = voices.find(voice => voice.lang.startsWith('zh') || voice.name.includes('Chinese'));
             voicesLoaded = true;
             
@@ -172,13 +177,10 @@
             }
         }
         
-        // 語音列表監聽事件 (在 iOS 上，必須在用戶操作後才可能載入)
         if (synth.onvoiceschanged !== undefined) {
             synth.onvoiceschanged = loadChineseVoice;
         }
         
-        // 修正 1：在 playCurrentSound 執行時，強制重新檢查語音列表
-        // 這是 iOS 語音合成常用的 workaround
         function ensureVoicesLoaded() {
             if (!voicesLoaded) {
                 loadChineseVoice();
@@ -186,49 +188,69 @@
         }
 
         /**
-         * 播放當前注音符號的聲音。
+         * 通用播放函數。
+         * @param {string} text 要唸出的文字。
+         * @param {HTMLElement} btn 觸發的按鈕元素，用於視覺回饋。
+         * @param {string} originalText 按鈕的原始文字。
          */
-        function playCurrentSound() {
-            if (!currentSymbol || synth.speaking) {
-                return; // 如果沒有題目或正在播放，則退出
+        function speakText(text, btn, originalText) {
+            if (synth.speaking) {
+                synth.cancel();
             }
             
-            ensureVoicesLoaded(); // 確保語音列表已載入
-
-            synth.cancel(); // 確保停止所有正在播放的語音
-
-            const utterance = new SpeechSynthesisUtterance(currentSymbol);
+            ensureVoicesLoaded(); 
+            const utterance = new SpeechSynthesisUtterance(text);
             
             if (chineseVoice) {
                 utterance.voice = chineseVoice;
-                // 修正 2：如果找到了特定的中文語音，就使用它的語言代碼
                 utterance.lang = chineseVoice.lang;
             } else {
-                 // 即使沒找到，也設定語言為中文，讓瀏覽器嘗試使用最接近的語音
                 utterance.lang = 'zh-TW'; 
             }
 
-            // 設定語速和音調 (可選，讓發音更像教具)
             utterance.rate = 0.8; 
             utterance.pitch = 1.0; 
 
-            listenButton.textContent = '🔊 正在發音...';
-            listenButton.disabled = true;
+            btn.textContent = '🔊 正在發音...';
+            btn.disabled = true;
 
             utterance.onend = function() {
-                listenButton.textContent = '👂 聽聽看';
-                listenButton.disabled = false;
+                btn.textContent = originalText;
+                btn.disabled = false;
+            };
+            utterance.onerror = function(e) {
+                console.error("Speech Synthesis Error:", e);
+                messageEl.textContent = '語音播放失敗，請檢查系統設定中的語音功能。';
+                btn.textContent = originalText;
+                btn.disabled = false;
             };
 
-            // 修正 3：由於 iOS 語音合成不一定成功，我們在播放前再檢查一次
-            // 注意：Safari 在用戶點擊觸發播放時通常是成功的，這個 try/catch 主要是防護。
             try {
                  synth.speak(utterance);
             } catch (e) {
-                console.error("Speech Synthesis Error:", e);
-                messageEl.textContent = '語音播放失敗，請檢查系統設定中的語音功能。';
-                utterance.onend(); // 模擬結束，恢復按鈕
+                utterance.onerror(e);
             }
+        }
+
+        /**
+         * 播放當前注音符號的聲音。
+         */
+        function playCurrentSound() {
+            if (!currentSymbol || listenButton.disabled) {
+                return;
+            }
+            speakText(currentSymbol, listenButton, '👂 聽聽看');
+        }
+        
+        /**
+         * 新增：語音功能測試按鈕的函數。
+         */
+        function testSpeech() {
+            if (testButton.disabled) {
+                return;
+            }
+            // 唸出固定的中文句子，測試系統語音是否可用
+            speakText('你好，這是語音功能測試，如果聽得到聲音，表示程式碼正常。', testButton, '🔊 語音測試');
         }
 
         // ----------------------------------------------------
@@ -263,7 +285,7 @@
             
             listenButton.disabled = true;
             listenButton.textContent = '👂 聽聽看';
-            messageEl.textContent = '計數已歸零。請點擊「下一題」重新開始練習。';
+            messageEl.textContent = '計數已歸零。請點擊「下一題」開始練習。';
 
             synth.cancel(); 
         }
@@ -271,7 +293,6 @@
         // 首次載入時的初始化
         window.onload = function() {
             resetGame(); 
-            // 在載入時也嘗試載入一次語音，提高成功率
             loadChineseVoice();
         }
     </script>
