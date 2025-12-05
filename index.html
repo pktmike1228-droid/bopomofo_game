@@ -141,6 +141,7 @@
     </div>
 
 <script>
+    // 這一版專注於 iOS 台灣口音優化
     const bopomofo = [
         "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
         "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
@@ -148,8 +149,8 @@
         "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"
     ];
 
-    // 優化後的拼音表：加上聲調符號，確保大陸口音也能讀出第一聲（較接近注音教學）
-    const bopomofoMap = {
+    // 只有在真的找不到台灣語音時，才用這個拼音表當作最後手段
+    const pinyinMap = {
         "ㄅ": "bō", "ㄆ": "pō", "ㄇ": "mō", "ㄈ": "fō", 
         "ㄉ": "dē", "ㄊ": "tē", "ㄋ": "nē", "ㄌ": "lē", 
         "ㄍ": "gē", "ㄎ": "kē", "ㄏ": "hē",
@@ -157,7 +158,7 @@
         "ㄓ": "zhī", "ㄔ": "chī", "ㄕ": "shī", "ㄖ": "rī", 
         "ㄗ": "zī", "ㄘ": "cī", "ㄙ": "sī",
         "ㄧ": "yī", "ㄨ": "wū", "ㄩ": "yū", 
-        "ㄚ": "ā", "ㄛ": "ō", "ㄜ": "ē", "ㄝ": "iē", // ㄝ 改為 ie 發音較準
+        "ㄚ": "ā", "ㄛ": "ō", "ㄜ": "ē", "ㄝ": "iē",
         "ㄞ": "āi", "ㄟ": "ēi", "ㄠ": "āo", "ㄡ": "ōu",
         "ㄢ": "ān", "ㄣ": "ēn", "ㄤ": "āng", "ㄥ": "ēng", "ㄦ": "ér"
     };
@@ -173,78 +174,74 @@
     
     const synth = window.speechSynthesis;
     let targetVoice = null; 
-    let usePinyinFallback = false; 
 
     // ----------------------------------------------------
-    // I. 語音合成核心函數 (修復版)
+    // I. iOS 語音鎖定邏輯
     // ----------------------------------------------------
 
-    function loadChineseVoice() {
+    function loadIOSVoice() {
         const voices = synth.getVoices();
-        if (voices.length === 0) return;
+        
+        // 策略 1: 最優先尋找 iOS 的御用台灣發音員 "Meijia" (美佳)
+        // Meijia 是 iOS 系統裡能最完美朗讀注音符號的語音
+        targetVoice = voices.find(v => v.name.includes('Meijia'));
 
-        // 1. 優先尋找明確的台灣繁體語音 (包含 Mac/iOS 的 zh-Hant-TW)
-        targetVoice = voices.find(v => 
-            v.lang === 'zh-TW' || 
-            v.lang === 'zh-Hant-TW' || 
-            v.name.includes('Taiwan')
-        );
-
-        // 2. 判斷是否使用拼音替代
-        if (targetVoice) {
-            // 找到了台灣語音，直接讀注音
-            usePinyinFallback = false;
-            console.log(`使用台灣語音: ${targetVoice.name}`);
-        } else {
-            // 沒找到台灣語音，退而求其次找任何中文 (zh-CN, zh-HK 等)
-            targetVoice = voices.find(v => v.lang.startsWith('zh') || v.name.includes('Chinese'));
-            
-            // 【關鍵修正】只要不是正宗台灣語音，一律強制轉拼音
-            // 因為大陸或通用語音引擎通常看不懂注音符號
-            usePinyinFallback = true;
-            console.warn("未找到台灣語音，啟用強制拼音 fallback 模式。");
+        // 策略 2: 如果找不到 Meijia，找任何標記為 zh-TW 或 Taiwan 的語音
+        if (!targetVoice) {
+            targetVoice = voices.find(v => v.lang === 'zh-TW' || v.lang === 'zh-Hant-TW');
         }
+
+        if (targetVoice) {
+            console.log("已鎖定台灣語音:", targetVoice.name);
+        } else {
+            console.log("尚未找到台灣語音，等待載入...");
+        }
+    }
+
+    // iOS Safari 的語音載入有時候很慢，需要重複檢查
+    if (synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = loadIOSVoice;
     }
     
-    // 監聽語音清單變更 (特別是針對 Chrome/Android)
-    if (synth.onvoiceschanged !== undefined) {
-        synth.onvoiceschanged = loadChineseVoice;
-    }
+    // 強制每 500ms 檢查一次，直到找到語音為止 (針對 iOS 的頑固問題)
+    let voiceCheckInterval = setInterval(() => {
+        const voices = synth.getVoices();
+        if (voices.length > 0) {
+            loadIOSVoice();
+            if (targetVoice) clearInterval(voiceCheckInterval);
+        }
+    }, 500);
 
     function speakText(text, btn, originalText) {
-        if (synth.speaking) {
-            synth.cancel();
-        }
+        // iOS 關鍵修正：播放前必須先 cancel，否則會卡住
+        synth.cancel();
 
-        // 確保有嘗試載入語音
-        if (!targetVoice) loadChineseVoice();
+        if (!targetVoice) loadIOSVoice();
 
         let textToSpeak = text;
         
-        // 邏輯修正：如果需要 Fallback，且該符號在映射表中有，就換成拼音
-        if (usePinyinFallback && bopomofoMap[text]) {
-            textToSpeak = bopomofoMap[text];
-        } else {
-            // 即使是台灣語音，有時候讀單個注音也會怪怪的，
-            // 這裡可以選擇性保留原字，或者視情況調整。
-            // 目前維持原字。
+        // 邏輯判斷：
+        // 如果我們找到了 Meijia (美佳) 或台灣語音，我們就直接唸注音符號 "ㄅ"
+        // 這樣才會有純正的台灣口音 (一聲)。
+        // 只有在完全找不到台灣語音時，才轉拼音。
+        if (!targetVoice && pinyinMap[text]) {
+            textToSpeak = pinyinMap[text];
         }
-        
+
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         
         if (targetVoice) {
             utterance.voice = targetVoice;
             utterance.lang = targetVoice.lang;
         } else {
-            // 極端情況：系統完全沒有中文語音，嘗試盲設 zh-TW
-            utterance.lang = 'zh-TW'; 
+            utterance.lang = 'zh-TW'; // 盲設，碰運氣
         }
 
-        // 調整參數讓發音清楚點
-        utterance.rate = 0.8; 
+        // 參數調整：美佳唸得比較快，稍微調慢一點點比較清楚
+        utterance.rate = 0.75; 
         utterance.pitch = 1.0; 
 
-        btn.textContent = '🔊 正在發音...';
+        btn.textContent = '🔊 發音中...';
         btn.disabled = true;
 
         utterance.onend = function() {
@@ -254,18 +251,15 @@
         
         utterance.onerror = function(e) {
             console.error("Speech Error:", e);
-            // 很多瀏覽器在 cancel() 時會觸發 error，忽略它
-            if (e.error !== 'canceled') {
-                btn.textContent = originalText;
-                btn.disabled = false;
-            }
+            btn.textContent = originalText;
+            btn.disabled = false;
         };
 
         synth.speak(utterance);
     }
 
     // ----------------------------------------------------
-    // II. 遊戲流程與介面控制
+    // II. 遊戲控制
     // ----------------------------------------------------
 
     function playCurrentSound() {
@@ -275,8 +269,8 @@
 
     function testSpeech() {
         if (testButton.disabled) return;
-        // 測試句：如果是大陸語音，這句話會讀得很捲舌
-        speakText('測試', testButton, '🔊 語音測試');
+        // 測試這句話，如果聽到台灣口音表示成功
+        speakText('ㄅㄆㄇㄈ', testButton, '🔊 語音測試');
     }
 
     function startNewRound() {
@@ -285,7 +279,6 @@
 
         currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
         displayEl.textContent = currentSymbol;
-        
         displayEl.style.fontSize = '15em'; 
         displayEl.style.color = '#e74c3c'; 
 
@@ -293,7 +286,7 @@
         listenButton.textContent = '👂 聽聽看';
         messageEl.textContent = `題目：${currentSymbol}`;
         
-        synth.cancel(); 
+        // 這裡不自動播放，因為 iOS 禁止非使用者觸發的自動播放
     }
     
     function resetGame() {
@@ -310,15 +303,11 @@
         messageEl.textContent = '點擊「下一題」開始';
 
         synth.cancel(); 
-        
-        // iOS Safari 需要在使用者互動時預先載入語音列表
-        loadChineseVoice();
+        loadIOSVoice();
     }
 
     window.onload = function() {
         resetGame();
-        // 再次嘗試載入，確保非同步的語音列表被抓到
-        setTimeout(loadChineseVoice, 500);
     };
 </script>
 </body>
