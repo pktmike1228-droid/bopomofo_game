@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注音符號隨機聽讀練習 - 最終測試版</title>
+    <title>注音符號隨機聽讀練習 - 最終修正版 (發音強制對應)</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -63,8 +63,8 @@
             margin-bottom: 20px;
         }
         
-        #test-button { /* 新增測試按鈕樣式 */
-            background-color: #9b59b6; /* 紫色 */
+        #test-button {
+            background-color: #9b59b6;
         }
         #test-button:hover {
             background-color: #8e44ad;
@@ -155,11 +155,26 @@
         const messageEl = document.getElementById('message');
         const listenButton = document.getElementById('listen-button');
         const counterDisplay = document.getElementById('counter-display');
-        const testButton = document.getElementById('test-button'); // 取得測試按鈕
+        const testButton = document.getElementById('test-button');
         
         const synth = window.speechSynthesis;
         let chineseVoice = null; 
         let voicesLoaded = false;
+        
+        // 【關鍵】注音符號到漢語拼音（或能發音的替代漢字）的映射表
+        // 我們盡量使用拼音或能被所有中文語音包正確發音的單字
+        const bopomofoMap = {
+            "ㄅ": "bo", "ㄆ": "po", "ㄇ": "mo", "ㄈ": "fo", 
+            "ㄉ": "de", "ㄊ": "te", "ㄋ": "ne", "ㄌ": "le", 
+            "ㄍ": "ge", "ㄎ": "ke", "ㄏ": "he",
+            "ㄐ": "ji", "ㄑ": "qi", "ㄒ": "xi", 
+            "ㄓ": "zhi", "ㄔ": "chi", "ㄕ": "shi", "ㄖ": "ri", 
+            "ㄗ": "zi", "ㄘ": "ci", "ㄙ": "si",
+            "ㄧ": "yi", "ㄨ": "wu", "ㄩ": "yu", 
+            "ㄚ": "a", "ㄛ": "o", "ㄜ": "e", "ㄝ": "ê", // ê 拼音用於準確發音
+            "ㄞ": "ai", "ㄟ": "ei", "ㄠ": "ao", "ㄡ": "ou",
+            "ㄢ": "an", "ㄣ": "en", "ㄤ": "ang", "ㄥ": "eng", "ㄦ": "er"
+        };
 
 
         // ----------------------------------------------------
@@ -169,7 +184,8 @@
         function loadChineseVoice() {
             if (voicesLoaded) return;
             const voices = synth.getVoices();
-            chineseVoice = voices.find(voice => voice.lang.startsWith('zh') || voice.name.includes('Chinese'));
+            // 優先尋找 zh-TW，如果沒有，就用其他中文語音
+            chineseVoice = voices.find(voice => voice.lang === 'zh-TW' || voice.name.includes('Taiwan') || voice.lang.startsWith('zh'));
             voicesLoaded = true;
             
             if (!chineseVoice) {
@@ -190,7 +206,7 @@
         /**
          * 通用播放函數。
          * @param {string} text 要唸出的文字。
-         * @param {HTMLElement} btn 觸發的按鈕元素，用於視覺回饋。
+         * @param {HTMLElement} btn 觸發的按鈕元素。
          * @param {string} originalText 按鈕的原始文字。
          */
         function speakText(text, btn, originalText) {
@@ -198,16 +214,25 @@
                 synth.cancel();
             }
             
+            // 【修正】在播放注音符號時，將其替換為拼音或替代字
+            let textToSpeak = text;
+            if (text.length === 1 && bopomofoMap[text]) {
+                textToSpeak = bopomofoMap[text];
+            }
+            
             ensureVoicesLoaded(); 
-            const utterance = new SpeechSynthesisUtterance(text);
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
             
             if (chineseVoice) {
                 utterance.voice = chineseVoice;
                 utterance.lang = chineseVoice.lang;
             } else {
+                // 即使是 zh-CN 語音包，我們也強制設定 lang 為 zh-TW，
+                // 讓系統嘗試用最適合的中文發音來讀出拼音。
                 utterance.lang = 'zh-TW'; 
             }
 
+            // 對於單個注音符號，語速可以稍慢一些
             utterance.rate = 0.8; 
             utterance.pitch = 1.0; 
 
@@ -220,7 +245,7 @@
             };
             utterance.onerror = function(e) {
                 console.error("Speech Synthesis Error:", e);
-                messageEl.textContent = '語音播放失敗，請檢查系統設定中的語音功能。';
+                messageEl.textContent = '語音播放失敗，請檢查系統設定。';
                 btn.textContent = originalText;
                 btn.disabled = false;
             };
@@ -239,17 +264,18 @@
             if (!currentSymbol || listenButton.disabled) {
                 return;
             }
+            // 這裡傳入的是注音符號，但 speakText 會自動替換為拼音
             speakText(currentSymbol, listenButton, '👂 聽聽看');
         }
         
         /**
-         * 新增：語音功能測試按鈕的函數。
+         * 語音功能測試按鈕的函數。
          */
         function testSpeech() {
             if (testButton.disabled) {
                 return;
             }
-            // 唸出固定的中文句子，測試系統語音是否可用
+            // 唸出完整的句子，測試系統語音是否可用
             speakText('你好，這是語音功能測試，如果聽得到聲音，表示程式碼正常。', testButton, '🔊 語音測試');
         }
 
