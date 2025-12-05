@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注音符號隨機聽讀練習 - 最終版</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f9;
+            margin: 0;
+            color: #333;
+        }
+
+        #game-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        #stats-container {
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            color: #555;
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* 讓按鈕和文字對齊 */
+            padding: 0 10px;
+        }
+
+        #bopomofo-display {
+            /* 預設大小在 JavaScript 中設定 */
+            font-weight: bold;
+            margin: 40px 0;
+            color: #e74c3c;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #ffebee;
+            border-radius: 10px;
+            line-height: 1; 
+            /* 過渡效果讓字體大小變化更平滑 */
+            transition: font-size 0.3s, color 0.3s; 
+        }
+
+        #button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .action-button {
+            padding: 15px 25px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        #next-button {
+            background-color: #3498db;
+        }
+
+        #next-button:hover {
+            background-color: #2980b9;
+        }
+        
+        #listen-button {
+            background-color: #2ecc71;
+        }
+
+        #listen-button:hover {
+            background-color: #27ae60;
+        }
+        
+        #reset-button {
+            background-color: #f39c12; 
+        }
+        
+        #reset-button:hover {
+            background-color: #e67e22;
+        }
+
+
+        .action-button:active {
+            transform: scale(0.98);
+        }
+
+        #message {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>注音符號隨機聽讀練習 💡</h1>
+        
+        <div id="stats-container">
+            <button id="reset-button" class="action-button" onclick="resetGame()">重新開始 🔄</button>
+            <div id="counter-display">已練習題數: 0</div>
+        </div>
+
+        <div id="bopomofo-display">點擊下一題開始</div>
+
+        <div id="button-group">
+            <button id="next-button" class="action-button" onclick="startNewRound()">下一題</button>
+            <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽聽看</button>
+        </div>
+        
+        <div id="message">請點擊「下一題」開始練習</div>
+
+        <audio id="bopomofo-audio"></audio>
+    </div>
+
+    <script>
+        // 全部 37 個注音符號
+        const bopomofo = [
+            "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
+            "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
+            "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄝ", "ㄞ", "ㄟ", "ㄠ", "ㄡ",
+            "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"
+        ];
+
+        let currentSymbol = '';
+        let roundCounter = 0; // 題數計次器
+
+        // 取得 HTML 元素
+        const displayEl = document.getElementById('bopomofo-display');
+        const audioEl = document.getElementById('bopomofo-audio');
+        const messageEl = document.getElementById('message');
+        const listenButton = document.getElementById('listen-button');
+        const counterDisplay = document.getElementById('counter-display');
+
+
+        /**
+         * 產生 Google Text-to-Speech 聲音連結。
+         */
+        function getSpeechUrl(text) {
+            // Google Translate TTS 服務
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-TW&q=${encodeURIComponent(text)}`;
+            return url;
+        }
+
+        /**
+         * 播放當前注音符號的聲音。
+         */
+        function playCurrentSound() {
+            if (!currentSymbol) {
+                messageEl.textContent = '請先點擊「下一題」開始。';
+                return;
+            }
+            
+            // 1. 設定音源
+            const speechUrl = getSpeechUrl(currentSymbol);
+            audioEl.src = speechUrl;
+
+            // 2. 暫停目前的音檔，並從頭開始
+            audioEl.pause();
+            audioEl.currentTime = 0;
+            
+            // 3. 視覺回饋：正在發音
+            listenButton.textContent = '🔊 正在發音...';
+            listenButton.disabled = true;
+
+            // 4. 播放結束後，恢復按鈕狀態並清除 src
+            audioEl.onended = function() {
+                listenButton.textContent = '👂 聽聽看';
+                listenButton.disabled = false;
+                audioEl.removeAttribute('src'); 
+            };
+            
+            // 5. 嘗試播放
+            audioEl.play().catch(error => {
+                messageEl.textContent = '播放聲音失敗，請點擊「下一題」再試一次。';
+                listenButton.textContent = '👂 聽聽看';
+                listenButton.disabled = false;
+                audioEl.removeAttribute('src'); 
+                console.error("播放聲音失敗：", error);
+            });
+        }
+
+        /**
+         * 開始一輪新的遊戲（產生新題目）
+         */
+        function startNewRound() {
+            // 1. 更新計次器
+            roundCounter++; 
+            counterDisplay.textContent = `已練習題數: ${roundCounter}`;
+
+            // 2. 隨機選出一個注音符號
+            currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
+            displayEl.textContent = currentSymbol;
+            
+            // 3. 切換回注音符號的大字體和顏色
+            displayEl.style.fontSize = '15em'; 
+            displayEl.style.color = '#e74c3c'; 
+
+            // 4. 確保 audio 元素沒有 src
+            audioEl.removeAttribute('src');
+            
+            // 5. 啟用「聽聽看」按鈕
+            listenButton.disabled = false;
+            listenButton.textContent = '👂 聽聽看';
+            messageEl.textContent = `新的注音符號：${currentSymbol}。請點擊「聽聽看」發音。`;
+        }
+        
+        /**
+         * 重新開始遊戲，重設計數器。
+         */
+        function resetGame() {
+            roundCounter = 0; // 計數器歸零
+            counterDisplay.textContent = `已練習題數: 0`;
+            currentSymbol = '';
+            
+            // 畫面狀態恢復初始
+            displayEl.textContent = '準備好了嗎？';
+            // 這裡設定初始文字的大小和顏色
+            displayEl.style.fontSize = '3em'; 
+            displayEl.style.color = '#7f8c8d'; 
+            
+            listenButton.disabled = true;
+            listenButton.textContent = '👂 聽聽看';
+            messageEl.textContent = '計數已歸零。請點擊「下一題」重新開始練習。';
+        }
+
+        // 首次載入時的初始化
+        window.onload = function() {
+            resetGame(); // 確保一開始就執行初始化狀態
+        }
+    </script>
+</body>
+</html>
