@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注音符號隨機聽讀練習 - 最終版</title>
+    <title>注音符號隨機聽讀練習 - 最終穩定版 (iOS相容)</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -38,12 +38,11 @@
             color: #555;
             display: flex;
             justify-content: space-between;
-            align-items: center; /* 讓按鈕和文字對齊 */
+            align-items: center;
             padding: 0 10px;
         }
 
         #bopomofo-display {
-            /* 預設大小在 JavaScript 中設定 */
             font-weight: bold;
             margin: 40px 0;
             color: #e74c3c;
@@ -54,7 +53,6 @@
             background-color: #ffebee;
             border-radius: 10px;
             line-height: 1; 
-            /* 過渡效果讓字體大小變化更平滑 */
             transition: font-size 0.3s, color 0.3s; 
         }
 
@@ -131,11 +129,9 @@
         
         <div id="message">請點擊「下一題」開始練習</div>
 
-        <audio id="bopomofo-audio"></audio>
     </div>
 
-<script>
-        // 全部 37 個注音符號
+    <script>
         const bopomofo = [
             "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
             "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
@@ -144,122 +140,123 @@
         ];
 
         let currentSymbol = '';
-        let roundCounter = 0; // 題數計次器
+        let roundCounter = 0; 
 
-        // 取得 HTML 元素
         const displayEl = document.getElementById('bopomofo-display');
         const messageEl = document.getElementById('message');
         const listenButton = document.getElementById('listen-button');
         const counterDisplay = document.getElementById('counter-display');
         
-        // 取得語音合成物件
         const synth = window.speechSynthesis;
-        let taiwanVoice = null; // 用來儲存中文（台灣）的語音
+        let chineseVoice = null; 
+        let voicesLoaded = false;
+
 
         // ----------------------------------------------------
-        // I. 語音合成核心函數 (取代原本的 Google TTS 請求)
+        // I. 語音合成核心函數 (針對 iOS 修正)
         // ----------------------------------------------------
 
         /**
-         * 載入並選取中文（台灣）語音。
-         * 這是確保發音正確的第一步。
+         * 載入並選取中文語音。
+         * 修正：移除對 "zh-TW" 的強制依賴，只要找到中文語音即可。
          */
-        function loadTaiwanVoice() {
-            // 語音載入可能需要時間，這裡嘗試尋找 "zh-TW" 的語音
+        function loadChineseVoice() {
+            if (voicesLoaded) return;
             const voices = synth.getVoices();
-            taiwanVoice = voices.find(voice => voice.lang === 'zh-TW' || voice.name.includes('Taiwan') || voice.name.includes('Mao-Mao'));
+            // 嘗試找到任何中文語音 (zh-TW, zh-CN, zh-HK, 或任何名稱包含 Chinese 的)
+            chineseVoice = voices.find(voice => voice.lang.startsWith('zh') || voice.name.includes('Chinese'));
+            voicesLoaded = true;
             
-            if (!taiwanVoice) {
-                console.warn("未找到中文(台灣)語音，將使用預設語音。");
+            if (!chineseVoice) {
+                console.warn("未找到中文語音，將使用瀏覽器預設語音。");
             }
         }
         
-        // 語音列表可能在頁面載入後才出現，所以需要監聽事件
+        // 語音列表監聽事件 (在 iOS 上，必須在用戶操作後才可能載入)
         if (synth.onvoiceschanged !== undefined) {
-            synth.onvoiceschanged = loadTaiwanVoice;
+            synth.onvoiceschanged = loadChineseVoice;
         }
-        loadTaiwanVoice(); // 嘗試立即載入一次
+        
+        // 修正 1：在 playCurrentSound 執行時，強制重新檢查語音列表
+        // 這是 iOS 語音合成常用的 workaround
+        function ensureVoicesLoaded() {
+            if (!voicesLoaded) {
+                loadChineseVoice();
+            }
+        }
 
         /**
          * 播放當前注音符號的聲音。
-         * 使用瀏覽器內建的 SpeechSynthesis。
          */
         function playCurrentSound() {
-            if (!currentSymbol) {
-                messageEl.textContent = '請先點擊「下一題」開始。';
-                return;
+            if (!currentSymbol || synth.speaking) {
+                return; // 如果沒有題目或正在播放，則退出
             }
             
-            // 確保沒有重複發音
-            synth.cancel();
+            ensureVoicesLoaded(); // 確保語音列表已載入
 
-            // 1. 建立語音指令
+            synth.cancel(); // 確保停止所有正在播放的語音
+
             const utterance = new SpeechSynthesisUtterance(currentSymbol);
             
-            // 2. 設定語音（如果有找到台灣腔調）
-            if (taiwanVoice) {
-                utterance.voice = taiwanVoice;
-                utterance.lang = 'zh-TW';
+            if (chineseVoice) {
+                utterance.voice = chineseVoice;
+                // 修正 2：如果找到了特定的中文語音，就使用它的語言代碼
+                utterance.lang = chineseVoice.lang;
             } else {
-                utterance.lang = 'zh-TW'; // 即使沒找到，也設定語言為中文，讓瀏覽器嘗試使用最接近的語音
+                 // 即使沒找到，也設定語言為中文，讓瀏覽器嘗試使用最接近的語音
+                utterance.lang = 'zh-TW'; 
             }
 
-            // 3. 設定語速和音調 (可選，但可以讓發音更像教具)
-            utterance.rate = 0.8; // 稍慢的語速
+            // 設定語速和音調 (可選，讓發音更像教具)
+            utterance.rate = 0.8; 
             utterance.pitch = 1.0; 
 
-            // 4. 視覺回饋：正在發音
             listenButton.textContent = '🔊 正在發音...';
             listenButton.disabled = true;
 
-            // 5. 語音結束後，恢復按鈕狀態
             utterance.onend = function() {
                 listenButton.textContent = '👂 聽聽看';
                 listenButton.disabled = false;
             };
 
-            // 6. 播放聲音！
-            synth.speak(utterance);
+            // 修正 3：由於 iOS 語音合成不一定成功，我們在播放前再檢查一次
+            // 注意：Safari 在用戶點擊觸發播放時通常是成功的，這個 try/catch 主要是防護。
+            try {
+                 synth.speak(utterance);
+            } catch (e) {
+                console.error("Speech Synthesis Error:", e);
+                messageEl.textContent = '語音播放失敗，請檢查系統設定中的語音功能。';
+                utterance.onend(); // 模擬結束，恢復按鈕
+            }
         }
 
         // ----------------------------------------------------
-        // II. 遊戲流程控制 (startNewRound / resetGame)
+        // II. 遊戲流程控制
         // ----------------------------------------------------
 
-        /**
-         * 開始一輪新的遊戲（產生新題目）
-         */
         function startNewRound() {
-            // 1. 更新計次器
             roundCounter++; 
             counterDisplay.textContent = `已練習題數: ${roundCounter}`;
 
-            // 2. 隨機選出一個注音符號
             currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
             displayEl.textContent = currentSymbol;
             
-            // 3. 切換回注音符號的大字體和顏色
             displayEl.style.fontSize = '15em'; 
             displayEl.style.color = '#e74c3c'; 
 
-            // 4. 啟用「聽聽看」按鈕
             listenButton.disabled = false;
             listenButton.textContent = '👂 聽聽看';
             messageEl.textContent = `新的注音符號：${currentSymbol}。請點擊「聽聽看」發音。`;
             
-            // 清除之前的播放請求 (舊版程式碼中的 audioEl 已經不需要了，但為保險清除舊的 TTS 請求)
-            synth.cancel();
+            synth.cancel(); 
         }
         
-        /**
-         * 重新開始遊戲，重設計數器。
-         */
         function resetGame() {
-            roundCounter = 0; // 計數器歸零
+            roundCounter = 0;
             counterDisplay.textContent = `已練習題數: 0`;
             currentSymbol = '';
             
-            // 畫面狀態恢復初始
             displayEl.textContent = '準備好了嗎？';
             displayEl.style.fontSize = '3em'; 
             displayEl.style.color = '#7f8c8d'; 
@@ -268,13 +265,14 @@
             listenButton.textContent = '👂 聽聽看';
             messageEl.textContent = '計數已歸零。請點擊「下一題」重新開始練習。';
 
-            // 停止任何正在播放的語音
             synth.cancel(); 
         }
 
         // 首次載入時的初始化
         window.onload = function() {
             resetGame(); 
+            // 在載入時也嘗試載入一次語音，提高成功率
+            loadChineseVoice();
         }
     </script>
 </body>
