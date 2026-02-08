@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注音符號隨機聽讀練習 - MP3 本地播放版</title>
+    <title>語音聽讀練習 - API 強化版</title>
     <style>
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background-color: #f4f4f9;
+            background-color: #f0f2f5;
             margin: 0;
             color: #333;
         }
@@ -20,247 +20,225 @@
         #game-container {
             background: #fff;
             padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             text-align: center;
             width: 90%;
             max-width: 500px;
         }
 
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 10px;
+        h1 { color: #2c3e50; font-size: 1.5rem; margin-bottom: 20px; }
+
+        #mode-selector {
+            margin-bottom: 20px;
+            padding: 12px;
+            font-size: 1em;
+            border-radius: 10px;
+            border: 2px solid #3498db;
+            width: 100%;
+            cursor: pointer;
         }
         
         #stats-container {
             margin-bottom: 20px;
-            font-size: 1.1em;
-            color: #555;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0 10px;
         }
 
-        #bopomofo-display {
+        #display-area {
             font-weight: bold;
-            margin: 40px 0;
+            margin: 20px 0;
             color: #e74c3c;
-            min-height: 200px;
+            min-height: 250px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #ffebee;
-            border-radius: 10px;
-            line-height: 1; 
-            transition: font-size 0.3s, color 0.3s; 
+            background-color: #f8f9fa;
+            border-radius: 15px;
+            border: 2px solid #eee;
+            transition: all 0.3s; 
         }
 
         #button-group {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             justify-content: center;
             margin-bottom: 20px;
-        }
-        
-        #test-button {
-            display: none;
         }
 
         .action-button {
             padding: 15px 25px;
-            font-size: 1.2em;
+            font-size: 1.1em;
             font-weight: bold;
             cursor: pointer;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             color: white;
-            transition: background-color 0.2s, transform 0.1s;
+            transition: all 0.2s;
         }
 
-        #next-button {
-            background-color: #3498db;
-        }
-
-        #next-button:hover {
-            background-color: #2980b9;
-        }
+        #next-button { background-color: #3498db; flex: 1; }
+        #next-button:hover { background-color: #2980b9; }
         
-        #listen-button {
-            background-color: #2ecc71;
-        }
+        #listen-button { background-color: #2ecc71; flex: 1; }
+        #listen-button:hover { background-color: #27ae60; }
+        #listen-button:disabled { background-color: #bdc3c7; }
 
-        #listen-button:hover {
-            background-color: #27ae60;
-        }
-        
-        #reset-button {
-            background-color: #f39c12; 
-        }
-        
-        #reset-button:hover {
-            background-color: #e67e22;
-        }
-
-
-        .action-button:active {
-            transform: scale(0.98);
-        }
+        #reset-button { background-color: #95a5a6; padding: 8px 15px; font-size: 0.9em; }
 
         #message {
-            margin-top: 20px;
-            font-size: 1.2em;
-            color: #7f8c8d;
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #95a5a6;
+            min-height: 1.2em;
         }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <h1>注音符號隨機聽讀練習 💡</h1>
+        <h1>💡 隨機聽讀練習</h1>
+
+        <select id="mode-selector" onchange="resetGame()">
+            <option value="zh">注音符號 (ㄅ-ㄦ) [需 MP3]</option>
+            <option value="upper">英文字母 (大寫 A-Z) [API]</option>
+            <option value="lower">英文字母 (小寫 a-z) [API]</option>
+        </select>
         
         <div id="stats-container">
-            <button id="reset-button" class="action-button" onclick="resetGame()">重新開始 🔄</button>
-            <div id="counter-display">已練習題數: 0</div>
+            <button id="reset-button" class="action-button" onclick="resetGame()">歸零 🔄</button>
+            <div id="counter-display">練習題數: 0</div>
         </div>
 
-        <div id="bopomofo-display">點擊下一題開始</div>
+        <div id="display-area">準備好了嗎？</div>
 
         <div id="button-group">
             <button id="next-button" class="action-button" onclick="startNewRound()">下一題</button>
-            <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽聽看</button>
+            <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽發音</button>
         </div>
         
-        <div id="message">請點擊「下一題」開始練習</div>
+        <div id="message">請點擊下一題開始</div>
 
-        <audio id="bopomofo-audio" preload="auto"></audio>
-
+        <audio id="audio-player" preload="auto"></audio>
     </div>
 
     <script>
-        // 注音符號陣列
-        const bopomofo = [
-            "ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ",
-            "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ",
-            "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄝ", "ㄞ", "ㄟ", "ㄠ", "ㄡ",
-            "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"
-        ];
+        const dataSets = {
+            zh: ["ㄅ", "ㄆ", "ㄇ", "ㄈ", "ㄉ", "ㄊ", "ㄋ", "ㄌ", "ㄍ", "ㄎ", "ㄏ", "ㄐ", "ㄑ", "ㄒ", "ㄓ", "ㄔ", "ㄕ", "ㄖ", "ㄗ", "ㄘ", "ㄙ", "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄝ", "ㄞ", "ㄟ", "ㄠ", "ㄡ", "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ"],
+            upper: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"],
+            lower: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+        };
 
         let currentSymbol = '';
         let roundCounter = 0; 
 
-        const displayEl = document.getElementById('bopomofo-display');
+        const modeSelector = document.getElementById('mode-selector');
+        const displayEl = document.getElementById('display-area');
         const messageEl = document.getElementById('message');
         const listenButton = document.getElementById('listen-button');
         const counterDisplay = document.getElementById('counter-display');
-        const audioEl = document.getElementById('bopomofo-audio'); 
+        const audioEl = document.getElementById('audio-player'); 
 
-        // ----------------------------------------------------
-        // I. MP3 播放核心函數
-        // ----------------------------------------------------
-        
-        /**
-         * 根據注音符號取得其對應的 MP3 檔案路徑。
-         * 修正：加入了 "mp3/" 資料夾路徑。
-         */
-        function getMp3FilePath(symbol) {
-            const index = bopomofo.indexOf(symbol);
-            if (index === -1) {
-                console.error("無效的注音符號:", symbol);
-                return '';
+        // 核心播放邏輯
+        function playCurrentSound() {
+            if (!currentSymbol) return;
+            
+            const mode = modeSelector.value;
+            
+            // 如果是英文模式，使用 Web Speech API
+            if (mode === 'upper' || mode === 'lower') {
+                speakByAPI(currentSymbol);
+            } else {
+                // 如果是注音模式，維持原本的 MP3 播放邏輯
+                playByMP3(currentSymbol);
             }
-            
-            const fileNumber = index + 1;
-            const fileName = fileNumber.toString().padStart(2, '0');
-            
-            // 【已修正】從 mp3 資料夾讀取檔案
-            return `mp3/${fileName}.mp3`;
         }
 
         /**
-         * 播放當前注音符號對應的 MP3 檔案。
+         * 方法 A: 使用瀏覽器內建 API (適用英文)
          */
-        function playCurrentSound() {
-            if (!currentSymbol) {
-                messageEl.textContent = '請先點擊「下一題」開始。';
-                return;
-            }
-            
-            const mp3Path = getMp3FilePath(currentSymbol);
-            
-            if (!mp3Path) {
-                messageEl.textContent = '錯誤：找不到該注音的 MP3 檔案。';
-                return;
-            }
+        function speakByAPI(text) {
+            // 先停止之前的發音
+            window.speechSynthesis.cancel();
 
-            audioEl.src = mp3Path;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US'; // 強制美國英文口音
+            utterance.rate = 0.3;    // 速度稍微慢一點，方便練習
+
+            listenButton.textContent = '🔊 播放中...';
+            listenButton.disabled = true;
+
+            utterance.onend = () => {
+                listenButton.textContent = '👂 聽發音';
+                listenButton.disabled = false;
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        /**
+         * 方法 B: 使用本地 MP3 (適用注音)
+         */
+        function playByMP3(symbol) {
+            const index = dataSets.zh.indexOf(symbol);
+            const fileNumber = (index + 1).toString().padStart(2, '0');
+            const mp3Path = `mp3/${fileNumber}.mp3`;
             
+            audioEl.src = mp3Path;
             audioEl.pause();
             audioEl.currentTime = 0;
             
-            listenButton.textContent = '🔊 正在播放...';
+            listenButton.textContent = '🔊 播放中...';
             listenButton.disabled = true;
 
-            audioEl.onended = function() {
-                listenButton.textContent = '👂 聽聽看';
+            audioEl.onended = () => {
+                listenButton.textContent = '👂 聽發音';
                 listenButton.disabled = false;
-                audioEl.removeAttribute('src'); 
             };
 
-            audioEl.oncanplaythrough = function() {
-                audioEl.play().catch(error => {
-                    console.error("播放 MP3 失敗:", error);
-                    messageEl.textContent = '播放失敗，請檢查 MP3 檔案是否正確上傳到 mp3 資料夾。';
-                    audioEl.onended(); 
-                });
+            audioEl.onerror = () => {
+                messageEl.textContent = '❌ 找不到音檔：' + mp3Path;
+                listenButton.textContent = '👂 聽發音';
+                listenButton.disabled = false;
             };
-            
-            if (audioEl.readyState >= 3) {
-                audioEl.oncanplaythrough();
-            }
+
+            audioEl.play().catch(e => {
+                messageEl.textContent = '播放失敗，請檢查 MP3 資料夾。';
+                audioEl.onended();
+            });
         }
 
-        // ----------------------------------------------------
-        // II. 遊戲流程控制
-        // ----------------------------------------------------
-
         function startNewRound() {
+            const mode = modeSelector.value;
+            const currentList = dataSets[mode];
+            
             roundCounter++; 
-            counterDisplay.textContent = `已練習題數: ${roundCounter}`;
+            counterDisplay.textContent = `練習題數: ${roundCounter}`;
 
-            currentSymbol = bopomofo[Math.floor(Math.random() * bopomofo.length)];
+            currentSymbol = currentList[Math.floor(Math.random() * currentList.length)];
             displayEl.textContent = currentSymbol;
             
-            displayEl.style.fontSize = '15em'; 
-            displayEl.style.color = '#e74c3c'; 
+            displayEl.style.fontSize = (mode === 'zh') ? '10em' : '14em';
+            displayEl.style.color = '#2c3e50'; 
 
             listenButton.disabled = false;
-            listenButton.textContent = '👂 聽聽看';
-            messageEl.textContent = `新的注音符號：${currentSymbol}。請點擊「聽聽看」發音。`;
-            
-            audioEl.removeAttribute('src'); 
+            messageEl.textContent = mode === 'zh' ? '請聽注音發音' : '請聽英文發音 (API)';
         }
         
         function resetGame() {
             roundCounter = 0;
-            counterDisplay.textContent = `已練習題數: 0`;
+            counterDisplay.textContent = `練習題數: 0`;
             currentSymbol = '';
-            
-            displayEl.textContent = '準備好了嗎？';
-            displayEl.style.fontSize = '3em'; 
-            displayEl.style.color = '#7f8c8d'; 
-            
+            displayEl.textContent = 'Ready?';
+            displayEl.style.fontSize = '4em'; 
+            displayEl.style.color = '#bdc3c7'; 
             listenButton.disabled = true;
-            listenButton.textContent = '👂 聽聽看';
-            messageEl.textContent = '計數已歸零。請點擊「下一題」開始練習。';
-
-            audioEl.removeAttribute('src'); 
+            messageEl.textContent = '請點擊下一題開始';
+            window.speechSynthesis.cancel();
         }
 
-        // 首次載入時的初始化
-        window.onload = function() {
-            resetGame(); 
-        }
+        window.onload = resetGame;
     </script>
 </body>
 </html>
