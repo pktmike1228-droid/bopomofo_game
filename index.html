@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語音聽讀練習 - API 強化版</title>
+    <title>語音聽讀練習 - Google TTS 整合版</title>
     <style>
         body {
             font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
@@ -37,6 +37,7 @@
             border: 2px solid #3498db;
             width: 100%;
             cursor: pointer;
+            background-color: #fff;
         }
         
         #stats-container {
@@ -101,9 +102,9 @@
         <h1>💡 隨機聽讀練習</h1>
 
         <select id="mode-selector" onchange="resetGame()">
-            <option value="zh">注音符號 (ㄅ-ㄦ) [需 MP3]</option>
-            <option value="upper">英文字母 (大寫 A-Z) [API]</option>
-            <option value="lower">英文字母 (小寫 a-z) [API]</option>
+            <option value="zh">注音符號 (ㄅ-ㄦ) [本地 MP3]</option>
+            <option value="upper">英文字母 (大寫 A-Z) [Google TTS 英音]</option>
+            <option value="lower">英文字母 (小寫 a-z) [Google TTS 英音]</option>
         </select>
         
         <div id="stats-container">
@@ -140,52 +141,28 @@
         const counterDisplay = document.getElementById('counter-display');
         const audioEl = document.getElementById('audio-player'); 
 
-        // 核心播放邏輯
+        /**
+         * 播放核心邏輯
+         */
         function playCurrentSound() {
             if (!currentSymbol) return;
             
             const mode = modeSelector.value;
-            
-            // 如果是英文模式，使用 Web Speech API
-            if (mode === 'upper' || mode === 'lower') {
-                speakByAPI(currentSymbol);
+            let soundUrl = '';
+
+            if (mode === 'zh') {
+                // 注音模式：使用本地 mp3/ 資料夾
+                const index = dataSets.zh.indexOf(currentSymbol);
+                const fileNumber = (index + 1).toString().padStart(2, '0');
+                soundUrl = `mp3/${fileNumber}.mp3`;
             } else {
-                // 如果是注音模式，維持原本的 MP3 播放邏輯
-                playByMP3(currentSymbol);
+                // 英文模式：使用您提供的 Google TTS 英式發音連結
+                // 我們將字母 (currentSymbol) 動態放入 q 參數中
+                soundUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(currentSymbol)}&tl=en-uk&client=tw-ob`;
             }
-        }
 
-        /**
-         * 方法 A: 使用瀏覽器內建 API (適用英文)
-         */
-        function speakByAPI(text) {
-            // 先停止之前的發音
-            window.speechSynthesis.cancel();
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US'; // 強制美國英文口音
-            utterance.rate = 0.3;    // 速度稍微慢一點，方便練習
-
-            listenButton.textContent = '🔊 播放中...';
-            listenButton.disabled = true;
-
-            utterance.onend = () => {
-                listenButton.textContent = '👂 聽發音';
-                listenButton.disabled = false;
-            };
-
-            window.speechSynthesis.speak(utterance);
-        }
-
-        /**
-         * 方法 B: 使用本地 MP3 (適用注音)
-         */
-        function playByMP3(symbol) {
-            const index = dataSets.zh.indexOf(symbol);
-            const fileNumber = (index + 1).toString().padStart(2, '0');
-            const mp3Path = `mp3/${fileNumber}.mp3`;
-            
-            audioEl.src = mp3Path;
+            // 設定播放來源並播放
+            audioEl.src = soundUrl;
             audioEl.pause();
             audioEl.currentTime = 0;
             
@@ -197,14 +174,16 @@
                 listenButton.disabled = false;
             };
 
+            // 錯誤處理：如果 Google 擋掉請求或檔案不存在
             audioEl.onerror = () => {
-                messageEl.textContent = '❌ 找不到音檔：' + mp3Path;
+                console.error("無法加載音檔:", soundUrl);
+                messageEl.textContent = '❌ 音檔加載失敗 (檢查網絡或路徑)';
                 listenButton.textContent = '👂 聽發音';
                 listenButton.disabled = false;
             };
 
             audioEl.play().catch(e => {
-                messageEl.textContent = '播放失敗，請檢查 MP3 資料夾。';
+                console.error("播放嘗試失敗:", e);
                 audioEl.onended();
             });
         }
@@ -219,11 +198,12 @@
             currentSymbol = currentList[Math.floor(Math.random() * currentList.length)];
             displayEl.textContent = currentSymbol;
             
+            // 視覺調整
             displayEl.style.fontSize = (mode === 'zh') ? '10em' : '14em';
             displayEl.style.color = '#2c3e50'; 
 
             listenButton.disabled = false;
-            messageEl.textContent = mode === 'zh' ? '請聽注音發音' : '請聽英文發音 (API)';
+            messageEl.textContent = mode === 'zh' ? '請聽注音 (本地音檔)' : '請聽英式發音 (Google API)';
         }
         
         function resetGame() {
@@ -235,7 +215,6 @@
             displayEl.style.color = '#bdc3c7'; 
             listenButton.disabled = true;
             messageEl.textContent = '請點擊下一題開始';
-            window.speechSynthesis.cancel();
         }
 
         window.onload = resetGame;
