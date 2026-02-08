@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語音聽讀練習 - Google TTS 整合版</title>
+    <title>語音聽讀練習 - 速度可調版 (全 MP3)</title>
     <style>
+        /* ... 保留原本 CSS ... */
         body {
             font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
             display: flex;
@@ -12,7 +13,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            background-color: #f0f2f5;
+            background-color: #f4f4f9;
             margin: 0;
             color: #333;
         }
@@ -20,31 +21,46 @@
         #game-container {
             background: #fff;
             padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             text-align: center;
             width: 90%;
             max-width: 500px;
         }
 
-        h1 { color: #2c3e50; font-size: 1.5rem; margin-bottom: 20px; }
+        h1 { color: #2c3e50; margin-bottom: 15px; font-size: 1.5rem; }
 
         #mode-selector {
-            margin-bottom: 20px;
-            padding: 12px;
-            font-size: 1em;
-            border-radius: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            font-size: 1.1em;
+            border-radius: 5px;
             border: 2px solid #3498db;
             width: 100%;
-            cursor: pointer;
-            background-color: #fff;
         }
+
+        /* 新增：速度控制區塊樣式 */
+        #speed-control-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            border: 1px solid #eee;
+        }
+
+        #speed-slider { width: 150px; cursor: pointer; }
+        .speed-label { font-weight: bold; color: #3498db; min-width: 45px; }
         
         #stats-container {
             margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 0 10px;
         }
 
         #display-area {
@@ -55,71 +71,64 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #f8f9fa;
-            border-radius: 15px;
-            border: 2px solid #eee;
-            transition: all 0.3s; 
+            background-color: #f0f7ff;
+            border-radius: 10px;
+            border: 2px dashed #ddd;
+            transition: all 0.3s;
         }
 
-        #button-group {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
+        #button-group { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
 
         .action-button {
-            padding: 15px 25px;
+            padding: 12px 20px;
             font-size: 1.1em;
             font-weight: bold;
             cursor: pointer;
             border: none;
-            border-radius: 12px;
+            border-radius: 8px;
             color: white;
             transition: all 0.2s;
         }
 
         #next-button { background-color: #3498db; flex: 1; }
-        #next-button:hover { background-color: #2980b9; }
-        
         #listen-button { background-color: #2ecc71; flex: 1; }
-        #listen-button:hover { background-color: #27ae60; }
         #listen-button:disabled { background-color: #bdc3c7; }
+        #reset-button { background-color: #f39c12; font-size: 0.9em; }
 
-        #reset-button { background-color: #95a5a6; padding: 8px 15px; font-size: 0.9em; }
-
-        #message {
-            margin-top: 15px;
-            font-size: 0.9em;
-            color: #95a5a6;
-            min-height: 1.2em;
-        }
+        #message { margin-top: 15px; font-size: 1em; color: #7f8c8d; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
-        <h1>💡 隨機聽讀練習</h1>
+        <h1>✨ 隨機聽讀練習</h1>
 
         <select id="mode-selector" onchange="resetGame()">
-            <option value="zh">注音符號 (ㄅ-ㄦ) [本地 MP3]</option>
-            <option value="upper">英文字母 (大寫 A-Z) [Google TTS 英音]</option>
-            <option value="lower">英文字母 (小寫 a-z) [Google TTS 英音]</option>
+            <option value="zh">注音符號 (ㄅ-ㄦ)</option>
+            <option value="upper">英文字母 (大寫 A-Z)</option>
+            <option value="lower">英文字母 (小寫 a-z)</option>
         </select>
+
+        <div id="speed-control-box">
+            <span>🐢 慢</span>
+            <input type="range" id="speed-slider" min="0.5" max="1.0" step="0.1" value="1.0">
+            <span>快 🐇</span>
+            <span class="speed-label" id="speed-display">1.0x</span>
+        </div>
         
         <div id="stats-container">
-            <button id="reset-button" class="action-button" onclick="resetGame()">歸零 🔄</button>
-            <div id="counter-display">練習題數: 0</div>
+            <button id="reset-button" class="action-button" onclick="resetGame()">重新開始 🔄</button>
+            <div id="counter-display">已練習題數: 0</div>
         </div>
 
-        <div id="display-area">準備好了嗎？</div>
+        <div id="display-area">請點擊下一題開始</div>
 
         <div id="button-group">
             <button id="next-button" class="action-button" onclick="startNewRound()">下一題</button>
             <button id="listen-button" class="action-button" onclick="playCurrentSound()" disabled>👂 聽發音</button>
         </div>
         
-        <div id="message">請點擊下一題開始</div>
+        <div id="message">準備好了嗎？</div>
 
         <audio id="audio-player" preload="auto"></audio>
     </div>
@@ -135,86 +144,83 @@
         let roundCounter = 0; 
 
         const modeSelector = document.getElementById('mode-selector');
+        const speedSlider = document.getElementById('speed-slider');
+        const speedDisplay = document.getElementById('speed-display');
         const displayEl = document.getElementById('display-area');
         const messageEl = document.getElementById('message');
         const listenButton = document.getElementById('listen-button');
         const counterDisplay = document.getElementById('counter-display');
         const audioEl = document.getElementById('audio-player'); 
 
-        /**
-         * 播放核心邏輯
-         */
+        // 監聽速度滑桿，即時更新數值顯示
+        speedSlider.addEventListener('input', () => {
+            speedDisplay.textContent = speedSlider.value + 'x';
+            // 如果音訊正在播放，即時調整速度
+            audioEl.playbackRate = speedSlider.value;
+        });
+
+        function getMp3FilePath(symbol) {
+            const mode = modeSelector.value;
+            const index = dataSets[mode].indexOf(symbol);
+            if (index === -1) return '';
+            const fileNumber = (index + 1).toString().padStart(2, '0');
+            return `mp3/${mode}/${fileNumber}.mp3`;
+        }
+
         function playCurrentSound() {
             if (!currentSymbol) return;
             
-            const mode = modeSelector.value;
-            let soundUrl = '';
-
-            if (mode === 'zh') {
-                // 注音模式：使用本地 mp3/ 資料夾
-                const index = dataSets.zh.indexOf(currentSymbol);
-                const fileNumber = (index + 1).toString().padStart(2, '0');
-                soundUrl = `mp3/${fileNumber}.mp3`;
-            } else {
-                // 英文模式：使用您提供的 Google TTS 英式發音連結
-                // 我們將字母 (currentSymbol) 動態放入 q 參數中
-                soundUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(currentSymbol)}&tl=en-uk&client=tw-ob`;
-            }
-
-            // 設定播放來源並播放
-            audioEl.src = soundUrl;
+            const mp3Path = getMp3FilePath(currentSymbol);
+            audioEl.src = mp3Path;
+            
+            // 重要：在設定 src 之後重新套用速度，因為切換來源有時會重置速度
+            audioEl.playbackRate = speedSlider.value;
+            
             audioEl.pause();
             audioEl.currentTime = 0;
             
             listenButton.textContent = '🔊 播放中...';
             listenButton.disabled = true;
 
-            audioEl.onended = () => {
+            audioEl.onended = function() {
                 listenButton.textContent = '👂 聽發音';
                 listenButton.disabled = false;
             };
 
-            // 錯誤處理：如果 Google 擋掉請求或檔案不存在
-            audioEl.onerror = () => {
-                console.error("無法加載音檔:", soundUrl);
-                messageEl.textContent = '❌ 音檔加載失敗 (檢查網絡或路徑)';
+            audioEl.onerror = function() {
+                messageEl.textContent = '❌ 找不到音檔：' + mp3Path;
                 listenButton.textContent = '👂 聽發音';
                 listenButton.disabled = false;
             };
 
             audioEl.play().catch(e => {
-                console.error("播放嘗試失敗:", e);
+                messageEl.textContent = '播放失敗，請檢查檔案。';
                 audioEl.onended();
             });
         }
 
         function startNewRound() {
             const mode = modeSelector.value;
-            const currentList = dataSets[mode];
-            
             roundCounter++; 
-            counterDisplay.textContent = `練習題數: ${roundCounter}`;
-
-            currentSymbol = currentList[Math.floor(Math.random() * currentList.length)];
+            counterDisplay.textContent = `已練習題數: ${roundCounter}`;
+            currentSymbol = dataSets[mode][Math.floor(Math.random() * dataSets[mode].length)];
             displayEl.textContent = currentSymbol;
-            
-            // 視覺調整
-            displayEl.style.fontSize = (mode === 'zh') ? '10em' : '14em';
-            displayEl.style.color = '#2c3e50'; 
-
+            displayEl.style.fontSize = (mode === 'zh') ? '12em' : '15em';
+            displayEl.style.color = '#e74c3c'; 
             listenButton.disabled = false;
-            messageEl.textContent = mode === 'zh' ? '請聽注音 (本地音檔)' : '請聽英式發音 (Google API)';
+            messageEl.textContent = `請點擊聽聽看。`;
         }
         
         function resetGame() {
             roundCounter = 0;
-            counterDisplay.textContent = `練習題數: 0`;
+            counterDisplay.textContent = `已練習題數: 0`;
             currentSymbol = '';
             displayEl.textContent = 'Ready?';
             displayEl.style.fontSize = '4em'; 
             displayEl.style.color = '#bdc3c7'; 
             listenButton.disabled = true;
-            messageEl.textContent = '請點擊下一題開始';
+            messageEl.textContent = `已切換模式。`;
+            audioEl.removeAttribute('src'); 
         }
 
         window.onload = resetGame;
